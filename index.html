@@ -1,0 +1,281 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>가치관 공유 앱</title>
+    <link rel="stylesheet" href="styles.css">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <!-- 애플 산돌고딕 Neo 폰트 대체 -->
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/pretendard@1.3.6/dist/web/static/pretendard.css">
+    
+    <!-- Firebase SDK 추가 -->
+    <script type="module">
+      // Firebase 모듈 가져오기
+      import { initializeApp } from "https://www.gstatic.com/firebasejs/9.22.0/firebase-app.js";
+      import { getAuth, createUserWithEmailAndPassword, signInWithEmailAndPassword, signOut } from "https://www.gstatic.com/firebasejs/9.22.0/firebase-auth.js";
+      import * as database from "https://www.gstatic.com/firebasejs/9.22.0/firebase-database.js";
+      
+      // Firebase 설정
+      const firebaseConfig = {
+        apiKey: "AIzaSyDDODuDp73O8a-fVPdBQSZ8mzyrroOwGt0",
+        authDomain: "gachi-project-d4333.firebaseapp.com",
+        projectId: "gachi-project-d4333",
+        storageBucket: "gachi-project-d4333.firebaseapp.com",
+        messagingSenderId: "551663011021",
+        appId: "1:551663011021:web:abb57f5c80662063be1584",
+        measurementId: "G-2D2Q970JGP",
+        databaseURL: "https://gachi-project-d4333-default-rtdb.firebaseio.com"
+      };
+
+      // Firebase 초기화
+      try {
+        const app = initializeApp(firebaseConfig);
+        const auth = getAuth(app);
+        const db = database.getDatabase(app);
+        
+        // Firebase 함수를 전역으로 노출
+        window.firebase = {
+          auth: auth,
+          database: db,
+          ref: database.ref,
+          push: database.push,
+          set: database.set,
+          get: database.get,
+          update: database.update,
+          remove: database.remove,
+          onValue: database.onValue,
+          onChildAdded: database.onChildAdded,
+          onChildChanged: database.onChildChanged,
+          onChildRemoved: database.onChildRemoved,
+          child: database.child,
+          // Auth 함수 추가
+          createUserWithEmailAndPassword: (email, password) => createUserWithEmailAndPassword(auth, email, password),
+          signInWithEmailAndPassword: (email, password) => signInWithEmailAndPassword(auth, email, password),
+          signOut: () => signOut(auth)
+        };
+        
+        console.log('Firebase 초기화 성공');
+      } catch (error) {
+        console.error('Firebase 초기화 오류:', error);
+      }
+    </script>
+</head>
+<body>
+    <div id="login-container">
+        <button id="login-btn" class="login-btn">
+            <i class="fas fa-user"></i> 로그인
+        </button>
+    </div>
+
+    <!-- 로그인 모달 -->
+    <div id="login-modal" class="modal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h2>로그인</h2>
+                <button class="close-btn">&times;</button>
+            </div>
+            <div class="modal-body">
+                <form id="login-form">
+                    <div class="form-group">
+                        <label for="email">이메일</label>
+                        <input type="email" id="email" required placeholder="이메일을 입력하세요">
+                    </div>
+                    <div class="form-group">
+                        <label for="password">비밀번호</label>
+                        <input type="password" id="password" required placeholder="비밀번호를 입력하세요">
+                    </div>
+                    <div class="form-actions">
+                        <button type="submit" class="submit-btn">로그인</button>
+                        <button type="button" class="signup-btn">회원가입</button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+
+    <!-- 회원가입 모달 -->
+    <div id="signup-modal" class="modal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h2>회원가입</h2>
+                <button class="close-btn" id="signup-close-btn">&times;</button>
+            </div>
+            <div class="modal-body">
+                <form id="signup-form">
+                    <div class="form-group">
+                        <label for="signup-name">이름</label>
+                        <input type="text" id="signup-name" required placeholder="이름을 입력하세요">
+                    </div>
+                    <div class="form-group">
+                        <label for="signup-email">이메일</label>
+                        <input type="email" id="signup-email" required placeholder="이메일을 입력하세요">
+                    </div>
+                    <div class="form-group">
+                        <label for="signup-phone">전화번호</label>
+                        <input type="tel" id="signup-phone" required placeholder="전화번호를 입력하세요" pattern="[0-9]{3}-[0-9]{4}-[0-9]{4}">
+                        <small class="input-hint">형식: 010-1234-5678</small>
+                    </div>
+                    <div class="form-group password-group">
+                        <label for="signup-password">비밀번호</label>
+                        <div class="password-input-container">
+                            <input type="password" id="signup-password" required placeholder="비밀번호를 입력하세요">
+                            <button type="button" class="toggle-password">
+                                <i class="fas fa-eye"></i>
+                            </button>
+                        </div>
+                        <small class="input-hint">8자 이상, 영문, 숫자, 특수문자 포함</small>
+                    </div>
+                    <div class="form-group password-group">
+                        <label for="signup-password-confirm">비밀번호 확인</label>
+                        <div class="password-input-container">
+                            <input type="password" id="signup-password-confirm" required placeholder="비밀번호를 다시 입력하세요">
+                            <button type="button" class="toggle-password">
+                                <i class="fas fa-eye"></i>
+                            </button>
+                        </div>
+                    </div>
+                    <div class="form-group agreement-group">
+                        <div class="checkbox-container">
+                            <input type="checkbox" id="privacy-agreement" required>
+                            <label for="privacy-agreement">개인정보 수집 및 이용에 동의합니다.</label>
+                        </div>
+                        <button type="button" class="text-button" id="view-privacy">전문보기</button>
+                    </div>
+                    <div class="form-actions">
+                        <button type="submit" class="submit-btn">가입하기</button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+
+    <!-- 개인정보처리방침 모달 -->
+    <div id="privacy-modal" class="modal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h2>개인정보 수집 및 이용 동의</h2>
+                <button class="close-btn" id="privacy-close-btn">&times;</button>
+            </div>
+            <div class="modal-body">
+                <div class="privacy-content">
+                    <h3>1. 수집하는 개인정보의 항목</h3>
+                    <p>회사는 회원가입, 상담, 서비스 신청 등을 위해 아래와 같은 개인정보를 수집하고 있습니다.</p>
+                    <ul>
+                        <li>수집항목 : 이름, 이메일, 전화번호, 비밀번호</li>
+                        <li>개인정보 수집방법 : 홈페이지 회원가입</li>
+                    </ul>
+                    
+                    <h3>2. 개인정보의 수집 및 이용목적</h3>
+                    <p>회사는 수집한 개인정보를 다음의 목적을 위해 활용합니다.</p>
+                    <ul>
+                        <li>회원 관리</li>
+                        <li>서비스 제공</li>
+                        <li>마케팅 및 광고에의 활용</li>
+                    </ul>
+
+                    <h3>3. 개인정보의 보유 및 이용기간</h3>
+                    <p>회원탈퇴 시까지 (단, 관계법령에 따라 보존할 필요가 있는 경우 해당 기간까지 보관)</p>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="container">
+        <header class="app-header">
+            <h1>가치관 공유 앱</h1>
+            <p>자신이 중요하게 여기는 가치관을 공유하고 공감해보세요!</p>
+        </header>
+
+        <section class="input-section">
+            <form id="value-form">
+                <input type="text" id="value-input" placeholder="당신의 가치관을 입력하세요 (예: 성실함, 자유로운 삶)" required>
+                <div id="hashtag-suggestions" class="hashtag-suggestions"></div>
+                <div class="date-option">
+                    <input type="checkbox" id="use-yesterday" name="use-yesterday">
+                    <label for="use-yesterday">어제 작성한 가치관으로 등록하기</label>
+                </div>
+                <button type="submit">등록하기</button>
+            </form>
+            <p id="submission-limit-message" class="limit-message"></p>
+        </section>
+
+        <section class="tabs-container">
+            <div class="tabs">
+                <button class="tab-btn active" data-tab="all">전체 보기</button>
+                <button class="tab-btn" data-tab="yesterday">어제 등록</button>
+                <button class="tab-btn" data-tab="today">오늘의 TOP 10</button>
+                <button class="tab-btn" data-tab="weekly">주간 TOP</button>
+            </div>
+        </section>
+
+        <section class="values-container">
+            <div id="values-list" class="values-list"></div>
+        </section>
+    </div>
+
+    <!-- 가치관 카드 템플릿 -->
+    <template id="value-card-template">
+        <div class="value-card">
+            <div class="value-content">
+                <h3 class="value-text"></h3>
+                <div class="value-hashtags"></div>
+                <div class="value-date"></div>
+            </div>
+            <div class="value-actions">
+                <button class="like-btn"><i class="fas fa-heart"></i> <span class="like-count">0</span></button>
+                <button class="comment-btn"><i class="fas fa-comment"></i> 댓글</button>
+                <button class="delete-btn" style="display:none;"><i class="fas fa-trash"></i></button>
+            </div>
+            <div class="comments-section" style="display: none;">
+                <div class="comments-list"></div>
+                <div class="comment-input">
+                    <input type="text" class="comment-text" placeholder="댓글을 입력하세요">
+                    <button class="post-comment-btn">등록</button>
+                </div>
+                <div class="reactions">
+                    <button class="reaction-btn" data-emoji="😊">😊</button>
+                    <button class="reaction-btn" data-emoji="👍">👍</button>
+                    <button class="reaction-btn" data-emoji="😢">😢</button>
+                    <button class="reaction-btn" data-emoji="😮">😮</button>
+                </div>
+            </div>
+        </div>
+    </template>
+
+    <script src="app.js"></script>
+    
+    <!-- 디버깅용 스크립트 -->
+    <script>
+        // 콘솔 출력 개선
+        const originalConsoleLog = console.log;
+        const originalConsoleError = console.error;
+        
+        console.log = function(...args) {
+            const timestamp = new Date().toISOString().split('T')[1].split('.')[0];
+            originalConsoleLog.apply(console, [`[${timestamp}][INFO]`, ...args]);
+        };
+        
+        console.error = function(...args) {
+            const timestamp = new Date().toISOString().split('T')[1].split('.')[0];
+            originalConsoleError.apply(console, [`[${timestamp}][ERROR]`, ...args]);
+        };
+        
+        // 전역 오류 처리
+        window.addEventListener('error', function(event) {
+            console.error('전역 오류 발생:', event.message, 'at', event.filename, 'line', event.lineno);
+        });
+        
+        console.log('페이지 로드 완료');
+        window.addEventListener('DOMContentLoaded', function() {
+            console.log('DOM 로드 완료');
+            // DOM 요소 확인
+            console.log('폼 요소:', document.getElementById('value-form'));
+            console.log('입력 요소:', document.getElementById('value-input'));
+            console.log('제출 메시지:', document.getElementById('submission-limit-message'));
+            console.log('값 목록:', document.getElementById('values-list'));
+            console.log('use-yesterday 체크박스:', document.getElementById('use-yesterday'));
+        });
+    </script>
+</body>
+</html> 
