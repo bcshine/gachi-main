@@ -398,12 +398,13 @@ function handleValueInput(e) {
 }
 
 // 가치관 제출 처리
-function handleValueSubmit(e) {
+async function handleValueSubmit(e) {
     e.preventDefault();
     console.log('가치관 제출 처리 시작');
     
     // 로그인 상태 확인
-    if (!firebase.auth.currentUser) {
+    const currentUser = firebase.auth.currentUser;
+    if (!currentUser) {
         console.log('로그인되지 않은 사용자');
         submissionLimitMessage.textContent = '로그인이 필요합니다. 로그인 후 이용해주세요.';
         submissionLimitMessage.style.color = '#bf4800';
@@ -417,16 +418,6 @@ function handleValueSubmit(e) {
         console.error('Firebase 객체가 초기화되지 않았습니다');
         submissionLimitMessage.textContent = 'Firebase 연결 오류. 페이지를 새로고침해주세요.';
         submissionLimitMessage.style.color = 'red';
-        return;
-    }
-    
-    // 사용자가 어제 날짜로 등록하려는지 확인
-    const yesterdayCheckbox = document.getElementById('use-yesterday');
-    const useYesterdayDate = yesterdayCheckbox ? yesterdayCheckbox.checked : false;
-    
-    if (!useYesterdayDate && !canSubmitToday()) {
-        submissionLimitMessage.textContent = `하루 ${DAILY_SUBMISSION_LIMIT}회 한정입니다.`;
-        console.log('제출 제한 초과');
         return;
     }
     
@@ -452,10 +443,9 @@ function handleValueSubmit(e) {
     console.log('추출된 해시태그:', hashtags);
     console.log('정리된 텍스트:', cleanedText);
     
-    // 현재 로그인된 사용자 ID 가져오기
-    const userId = firebase.auth.currentUser.uid;
-    
-    // 날짜 설정 (어제 날짜 혹은 현재 날짜)
+    // 날짜 설정
+    const yesterdayCheckbox = document.getElementById('use-yesterday');
+    const useYesterdayDate = yesterdayCheckbox ? yesterdayCheckbox.checked : false;
     let submissionDate = new Date();
     if (useYesterdayDate) {
         submissionDate.setDate(submissionDate.getDate() - 1);
@@ -470,8 +460,8 @@ function handleValueSubmit(e) {
         likes: 0,
         likedBy: {},
         comments: [],
-        userId: userId,
-        userEmail: firebase.auth.currentUser.email // 사용자 이메일 추가
+        userId: currentUser.uid,
+        userEmail: currentUser.email
     };
     
     console.log('새 가치관 객체:', newValue);
@@ -483,30 +473,27 @@ function handleValueSubmit(e) {
         
         console.log('데이터 저장 시도:', newValueRef);
         
-        firebase.set(newValueRef, newValue)
-            .then(() => {
-                console.log('Firebase에 가치관 저장 성공');
-                
-                // 폼 리셋
-                valueInput.value = '';
-                if (yesterdayCheckbox) {
-                    yesterdayCheckbox.checked = false;
-                }
-                submissionLimitMessage.textContent = '가치관이 등록되었습니다.';
-                submissionLimitMessage.style.color = '#2ecc71';
-                setTimeout(() => {
-                    submissionLimitMessage.textContent = '';
-                }, 3000);
-                checkSubmissionLimit();
-            })
-            .catch(error => {
-                console.error('Firebase 저장 오류:', error);
-                alert('저장 중 오류가 발생했습니다: ' + error.message);
-                submissionLimitMessage.textContent = '저장 중 오류가 발생했습니다. 다시 시도해주세요.';
-            });
+        await firebase.set(newValueRef, newValue);
+        console.log('Firebase에 가치관 저장 성공');
+        
+        // 폼 리셋
+        valueInput.value = '';
+        if (yesterdayCheckbox) {
+            yesterdayCheckbox.checked = false;
+        }
+        
+        // 성공 메시지 표시
+        submissionLimitMessage.textContent = '가치관이 등록되었습니다.';
+        submissionLimitMessage.style.color = '#2ecc71';
+        setTimeout(() => {
+            submissionLimitMessage.textContent = '';
+        }, 3000);
+        
     } catch (error) {
-        console.error('Firebase 저장 시도 중 오류:', error);
-        submissionLimitMessage.textContent = '저장 처리 중 오류가 발생했습니다. 다시 시도해주세요.';
+        console.error('Firebase 저장 오류:', error);
+        submissionLimitMessage.textContent = '저장 중 오류가 발생했습니다. 다시 시도해주세요.';
+        submissionLimitMessage.style.color = 'red';
+        alert('저장 중 오류가 발생했습니다: ' + error.message);
     }
 }
 
@@ -654,15 +641,14 @@ function createValueCard(value) {
     const template = document.getElementById('value-card-template');
     if (!template) {
         console.error('value-card-template을 찾을 수 없음');
-        return document.createElement('div'); // 빈 요소 반환
+        return document.createElement('div');
     }
     
     const cardClone = document.importNode(template.content, true);
-    
-    // 카드 내용 채우기
     const card = cardClone.querySelector('.value-card');
     card.id = `value-${value.id}`;
     
+    // 기존 내용 설정
     const valueText = card.querySelector('.value-text');
     valueText.textContent = value.text;
     
@@ -679,23 +665,46 @@ function createValueCard(value) {
     const dateElement = card.querySelector('.value-date');
     dateElement.textContent = formatDate(value.date);
     
-    // 좋아요 버튼 설정
+    // 삭제 버튼 설정
+    const deleteBtn = card.querySelector('.delete-btn');
+    if (deleteBtn) {
+        // 현재 로그인한 사용자의 글인 경우에만 삭제 버튼 표시
+        const currentUser = firebase.auth.currentUser;
+        if (currentUser && value.userId === currentUser.uid) {
+            deleteBtn.style.display = 'flex';
+            deleteBtn.onclick = () => {
+                if (confirm('정말로 이 가치관을 삭제하시겠습니까?')) {
+                    const valueRef = firebase.ref(firebase.database, `values/${value.id}`);
+                    firebase.remove(valueRef)
+                        .then(() => {
+                            console.log('가치관 삭제 성공:', value.id);
+                        })
+                        .catch(error => {
+                            console.error('가치관 삭제 오류:', error);
+                            alert('삭제 중 오류가 발생했습니다.');
+                        });
+                }
+            };
+        } else {
+            deleteBtn.style.display = 'none';
+        }
+    }
+
+    // 나머지 기존 코드 유지
     const likeBtn = card.querySelector('.like-btn');
     const likeCount = likeBtn.querySelector('.like-count');
     likeCount.textContent = value.likes || 0;
     
-    // 사용자가 이미 좋아요 했는지 확인
-    const userId = getUserId();
+    const currentUser = firebase.auth.currentUser;
+    const userId = currentUser ? currentUser.uid : null;
     if (value.likedBy && value.likedBy[userId]) {
         likeBtn.classList.add('liked');
     }
     
-    // 좋아요 이벤트 설정
     likeBtn.addEventListener('click', () => {
         handleLike(value.id);
     });
     
-    // 댓글 버튼 설정
     const commentBtn = card.querySelector('.comment-btn');
     const commentsSection = card.querySelector('.comments-section');
     
@@ -707,7 +716,6 @@ function createValueCard(value) {
         }
     });
     
-    // 댓글 입력 이벤트 설정
     const commentInput = commentsSection.querySelector('.comment-text');
     const postCommentBtn = commentsSection.querySelector('.post-comment-btn');
     
@@ -719,7 +727,6 @@ function createValueCard(value) {
         }
     });
     
-    // 리액션 버튼 이벤트 설정
     const reactionBtns = commentsSection.querySelectorAll('.reaction-btn');
     reactionBtns.forEach(btn => {
         btn.addEventListener('click', () => {
@@ -727,28 +734,6 @@ function createValueCard(value) {
             addComment(value.id, emoji);
         });
     });
-
-    // 내가 쓴 글에만 지우기 버튼 보이기
-    const deleteBtn = card.querySelector('.delete-btn');
-    if (value.userId === userId) {
-        deleteBtn.style.display = '';
-        deleteBtn.onclick = () => {
-            if (confirm('정말로 이 가치관을 삭제하시겠습니까?')) {
-                // 반드시 해당 value만 삭제
-                const valueRef = firebase.ref(firebase.database, `values/${value.id}`);
-                firebase.remove(valueRef)
-                    .then(() => {
-                        console.log('가치관 삭제 성공:', value.id);
-                    })
-                    .catch(error => {
-                        console.error('가치관 삭제 오류:', error);
-                        alert('삭제 중 오류가 발생했습니다.');
-                    });
-            }
-        };
-    } else {
-        deleteBtn.style.display = 'none';
-    }
 
     return card;
 }
