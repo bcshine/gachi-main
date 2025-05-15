@@ -432,6 +432,22 @@ header p {
     font-size: 16px;
 }
 
+/* 모바일 환경에서의 로그인 버튼 스타일 */
+@media (max-width: 768px) {
+    #login-container {
+        position: fixed;
+        top: auto;
+        bottom: 20px;
+        right: 20px;
+    }
+
+    .login-btn {
+        padding: 12px 24px;
+        font-size: 16px;
+        box-shadow: 0 4px 12px rgba(0, 0, 0, 0.2);
+    }
+}
+
 /* Remove old header-related login styles */
 .header-content,
 .header-left,

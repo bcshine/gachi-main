@@ -133,6 +133,94 @@ function initializeDOMElements() {
     submissionLimitMessage = document.getElementById('submission-limit-message');
     valuesList = document.getElementById('values-list');
     tabButtons = document.querySelectorAll('.tab-btn');
+
+    // 로그인 관련 요소들 초기화
+    const loginBtn = document.getElementById('login-btn');
+    const loginModal = document.getElementById('login-modal');
+    const loginForm = document.getElementById('login-form');
+    const signupBtn = document.querySelector('.signup-btn');
+    const closeBtn = document.querySelector('.close-btn');
+
+    // 로그인 버튼 클릭 이벤트
+    if (loginBtn) {
+        loginBtn.addEventListener('click', () => {
+            console.log('로그인 버튼 클릭');
+            if (loginModal) {
+                loginModal.style.display = 'block';
+                document.body.style.overflow = 'hidden';
+            }
+        });
+    } else {
+        console.error('login-btn을 찾을 수 없음');
+    }
+
+    // 모달 닫기 버튼 이벤트
+    if (closeBtn) {
+        closeBtn.addEventListener('click', () => {
+            console.log('닫기 버튼 클릭');
+            if (loginModal) {
+                loginModal.style.display = 'none';
+                document.body.style.overflow = 'auto';
+            }
+        });
+    }
+
+    // 로그인 폼 제출 이벤트
+    if (loginForm) {
+        loginForm.addEventListener('submit', async (e) => {
+            e.preventDefault();
+            console.log('로그인 폼 제출');
+            
+            const email = document.getElementById('email').value;
+            const password = document.getElementById('password').value;
+
+            try {
+                console.log('로그인 시도:', email);
+                const userCredential = await firebase.signInWithEmailAndPassword(email, password);
+                console.log('로그인 성공:', userCredential.user);
+                
+                loginModal.style.display = 'none';
+                document.body.style.overflow = 'auto';
+                loginForm.reset();
+                
+                submissionLimitMessage.textContent = '로그인되었습니다.';
+                submissionLimitMessage.style.color = '#2ecc71';
+                setTimeout(() => {
+                    submissionLimitMessage.textContent = '';
+                }, 3000);
+            } catch (error) {
+                console.error('로그인 실패:', error);
+                let errorMessage = '로그인에 실패했습니다. ';
+                switch (error.code) {
+                    case 'auth/invalid-email':
+                        errorMessage += '유효하지 않은 이메일 주소입니다.';
+                        break;
+                    case 'auth/user-disabled':
+                        errorMessage += '해당 계정이 비활성화되었습니다.';
+                        break;
+                    case 'auth/user-not-found':
+                        errorMessage += '등록되지 않은 이메일입니다.';
+                        break;
+                    case 'auth/wrong-password':
+                        errorMessage += '잘못된 비밀번호입니다.';
+                        break;
+                    default:
+                        errorMessage += error.message;
+                }
+                alert(errorMessage);
+            }
+        });
+    } else {
+        console.error('login-form을 찾을 수 없음');
+    }
+
+    // 모달 외부 클릭 시 닫기
+    window.addEventListener('click', (e) => {
+        if (e.target === loginModal) {
+            loginModal.style.display = 'none';
+            document.body.style.overflow = 'auto';
+        }
+    });
     
     // 요소 존재 확인
     if (!valueForm) console.error('value-form을 찾을 수 없음');
@@ -143,6 +231,44 @@ function initializeDOMElements() {
     if (!tabButtons || tabButtons.length === 0) console.error('tab-btn을 찾을 수 없음');
     
     console.log('DOM 요소 초기화 완료');
+
+    // Firebase 인증 상태 감지 설정
+    if (firebase.auth) {
+        firebase.onAuthStateChanged((user) => {
+            if (loginBtn) {
+                if (user) {
+                    console.log('로그인 상태 감지:', user.email);
+                    loginBtn.innerHTML = '<i class="fas fa-user"></i> 로그아웃';
+                    loginBtn.onclick = async () => {
+                        try {
+                            await firebase.signOut();
+                            console.log('로그아웃 성공');
+                            submissionLimitMessage.textContent = '로그아웃되었습니다.';
+                            submissionLimitMessage.style.color = '#2ecc71';
+                            setTimeout(() => {
+                                submissionLimitMessage.textContent = '';
+                            }, 3000);
+                        } catch (error) {
+                            console.error('로그아웃 실패:', error);
+                            alert('로그아웃 중 오류가 발생했습니다.');
+                        }
+                    };
+                } else {
+                    console.log('로그아웃 상태 감지');
+                    loginBtn.innerHTML = '<i class="fas fa-user"></i> 로그인';
+                    loginBtn.onclick = () => {
+                        if (loginModal) {
+                            loginModal.style.display = 'block';
+                            document.body.style.overflow = 'hidden';
+                        }
+                    };
+                }
+            }
+            updateFormState();
+        });
+    } else {
+        console.error('Firebase Auth가 초기화되지 않음');
+    }
 }
 
 // Firebase 실시간 업데이트 리스너 설정
@@ -276,6 +402,16 @@ function handleValueSubmit(e) {
     e.preventDefault();
     console.log('가치관 제출 처리 시작');
     
+    // 로그인 상태 확인
+    if (!firebase.auth.currentUser) {
+        console.log('로그인되지 않은 사용자');
+        submissionLimitMessage.textContent = '로그인이 필요합니다. 로그인 후 이용해주세요.';
+        submissionLimitMessage.style.color = '#bf4800';
+        loginModal.style.display = 'block';
+        document.body.style.overflow = 'hidden';
+        return;
+    }
+    
     // Firebase 초기화 확인
     if (!window.firebase || !window.firebase.database) {
         console.error('Firebase 객체가 초기화되지 않았습니다');
@@ -316,8 +452,8 @@ function handleValueSubmit(e) {
     console.log('추출된 해시태그:', hashtags);
     console.log('정리된 텍스트:', cleanedText);
     
-    // 사용자 ID 가져오기
-    const userId = getUserId();
+    // 현재 로그인된 사용자 ID 가져오기
+    const userId = firebase.auth.currentUser.uid;
     
     // 날짜 설정 (어제 날짜 혹은 현재 날짜)
     let submissionDate = new Date();
@@ -328,21 +464,22 @@ function handleValueSubmit(e) {
     
     // 가치관 객체 생성
     const newValue = {
-        text: cleanedText || valueText, // 해시태그만 있는 경우 원래 텍스트 사용
+        text: cleanedText || valueText,
         hashtags: hashtags,
         date: submissionDate.toISOString(),
         likes: 0,
         likedBy: {},
         comments: [],
-        userId: userId
+        userId: userId,
+        userEmail: firebase.auth.currentUser.email // 사용자 이메일 추가
     };
     
     console.log('새 가치관 객체:', newValue);
     
     try {
-        // Firebase에 저장 (push로 고유 key 생성!)
+        // Firebase에 저장
         const valuesRef = firebase.ref(firebase.database, 'values');
-        const newValueRef = firebase.push(valuesRef); // 반드시 push 사용!
+        const newValueRef = firebase.push(valuesRef);
         
         console.log('데이터 저장 시도:', newValueRef);
         
@@ -355,16 +492,38 @@ function handleValueSubmit(e) {
                 if (yesterdayCheckbox) {
                     yesterdayCheckbox.checked = false;
                 }
+                submissionLimitMessage.textContent = '가치관이 등록되었습니다.';
+                submissionLimitMessage.style.color = '#2ecc71';
+                setTimeout(() => {
+                    submissionLimitMessage.textContent = '';
+                }, 3000);
                 checkSubmissionLimit();
             })
             .catch(error => {
                 console.error('Firebase 저장 오류:', error);
-                alert('Firebase 저장 오류: ' + error);
+                alert('저장 중 오류가 발생했습니다: ' + error.message);
                 submissionLimitMessage.textContent = '저장 중 오류가 발생했습니다. 다시 시도해주세요.';
             });
     } catch (error) {
         console.error('Firebase 저장 시도 중 오류:', error);
         submissionLimitMessage.textContent = '저장 처리 중 오류가 발생했습니다. 다시 시도해주세요.';
+    }
+}
+
+// 입력 폼 비활성화/활성화 함수
+function updateFormState() {
+    const isLoggedIn = firebase.auth.currentUser !== null;
+    const submitButton = valueForm.querySelector('button[type="submit"]');
+    valueInput.disabled = !isLoggedIn;
+    submitButton.disabled = !isLoggedIn;
+    
+    if (!isLoggedIn) {
+        valueInput.placeholder = '로그인 후 가치관을 공유할 수 있습니다.';
+        submissionLimitMessage.textContent = '로그인이 필요합니다.';
+        submissionLimitMessage.style.color = '#bf4800';
+    } else {
+        valueInput.placeholder = '당신의 가치관을 입력하세요 (예: 성실함, 자유로운 삶)';
+        submissionLimitMessage.textContent = '';
     }
 }
 
@@ -794,30 +953,42 @@ loginForm.addEventListener('submit', async (e) => {
     const password = document.getElementById('password').value;
 
     try {
+        console.log('로그인 시도:', email);
         // Firebase Authentication을 사용한 로그인 처리
         const userCredential = await firebase.signInWithEmailAndPassword(email, password);
         console.log('로그인 성공:', userCredential.user);
+        
+        // 로그인 성공 시 UI 업데이트
         loginModal.style.display = 'none';
         document.body.style.overflow = 'auto';
+        loginForm.reset();
         
-        // 로그인 성공 후 UI 업데이트
-        const loginBtn = document.getElementById('login-btn');
-        loginBtn.innerHTML = '<i class="fas fa-user"></i> 로그아웃';
-        loginBtn.onclick = () => {
-            firebase.signOut().then(() => {
-                console.log('로그아웃 성공');
-                loginBtn.innerHTML = '<i class="fas fa-user"></i> 로그인';
-                loginBtn.onclick = () => {
-                    loginModal.style.display = 'block';
-                    document.body.style.overflow = 'hidden';
-                };
-            }).catch((error) => {
-                console.error('로그아웃 실패:', error);
-            });
-        };
+        // 성공 메시지 표시
+        submissionLimitMessage.textContent = '로그인되었습니다.';
+        submissionLimitMessage.style.color = '#2ecc71';
+        setTimeout(() => {
+            submissionLimitMessage.textContent = '';
+        }, 3000);
     } catch (error) {
         console.error('로그인 실패:', error);
-        alert('로그인에 실패했습니다. 이메일과 비밀번호를 확인해주세요.');
+        let errorMessage = '로그인에 실패했습니다. ';
+        switch (error.code) {
+            case 'auth/invalid-email':
+                errorMessage += '유효하지 않은 이메일 주소입니다.';
+                break;
+            case 'auth/user-disabled':
+                errorMessage += '해당 계정이 비활성화되었습니다.';
+                break;
+            case 'auth/user-not-found':
+                errorMessage += '등록되지 않은 이메일입니다.';
+                break;
+            case 'auth/wrong-password':
+                errorMessage += '잘못된 비밀번호입니다.';
+                break;
+            default:
+                errorMessage += error.message;
+        }
+        alert(errorMessage);
     }
 });
 
@@ -952,34 +1123,6 @@ signupForm.addEventListener('submit', async (e) => {
     } catch (error) {
         console.error('회원가입 실패:', error);
         alert('회원가입에 실패했습니다. ' + error.message);
-    }
-});
-
-// 로그인 상태 감지
-firebase.auth.onAuthStateChanged((user) => {
-    const loginBtn = document.getElementById('login-btn');
-    if (user) {
-        // 로그인 상태
-        loginBtn.innerHTML = '<i class="fas fa-user"></i> 로그아웃';
-        loginBtn.onclick = () => {
-            firebase.signOut().then(() => {
-                console.log('로그아웃 성공');
-                loginBtn.innerHTML = '<i class="fas fa-user"></i> 로그인';
-                loginBtn.onclick = () => {
-                    loginModal.style.display = 'block';
-                    document.body.style.overflow = 'hidden';
-                };
-            }).catch((error) => {
-                console.error('로그아웃 실패:', error);
-            });
-        };
-    } else {
-        // 로그아웃 상태
-        loginBtn.innerHTML = '<i class="fas fa-user"></i> 로그인';
-        loginBtn.onclick = () => {
-            loginModal.style.display = 'block';
-            document.body.style.overflow = 'hidden';
-        };
     }
 });
 

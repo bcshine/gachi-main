@@ -13,7 +13,13 @@
     <script type="module">
       // Firebase 모듈 가져오기
       import { initializeApp } from "https://www.gstatic.com/firebasejs/9.22.0/firebase-app.js";
-      import { getAuth, createUserWithEmailAndPassword, signInWithEmailAndPassword, signOut } from "https://www.gstatic.com/firebasejs/9.22.0/firebase-auth.js";
+      import { 
+        getAuth, 
+        createUserWithEmailAndPassword, 
+        signInWithEmailAndPassword, 
+        signOut,
+        onAuthStateChanged 
+      } from "https://www.gstatic.com/firebasejs/9.22.0/firebase-auth.js";
       import * as database from "https://www.gstatic.com/firebasejs/9.22.0/firebase-database.js";
       
       // Firebase 설정
@@ -49,11 +55,23 @@
           onChildChanged: database.onChildChanged,
           onChildRemoved: database.onChildRemoved,
           child: database.child,
-          // Auth 함수 추가
-          createUserWithEmailAndPassword: (email, password) => createUserWithEmailAndPassword(auth, email, password),
-          signInWithEmailAndPassword: (email, password) => signInWithEmailAndPassword(auth, email, password),
-          signOut: () => signOut(auth)
+          // Auth 함수들을 직접 바인딩
+          createUserWithEmailAndPassword: (email, password) => 
+            createUserWithEmailAndPassword(auth, email, password),
+          signInWithEmailAndPassword: (email, password) => 
+            signInWithEmailAndPassword(auth, email, password),
+          signOut: () => signOut(auth),
+          onAuthStateChanged: (callback) => onAuthStateChanged(auth, callback)
         };
+
+        // 초기 인증 상태 확인
+        onAuthStateChanged(auth, (user) => {
+          if (user) {
+            console.log('사용자 로그인 상태:', user.email);
+          } else {
+            console.log('로그인되지 않은 상태');
+          }
+        });
         
         console.log('Firebase 초기화 성공');
       } catch (error) {
@@ -63,7 +81,7 @@
 </head>
 <body>
     <div id="login-container">
-        <button id="login-btn" class="login-btn">
+        <button id="login-btn" class="login-btn" type="button">
             <i class="fas fa-user"></i> 로그인
         </button>
     </div>
@@ -73,7 +91,7 @@
         <div class="modal-content">
             <div class="modal-header">
                 <h2>로그인</h2>
-                <button class="close-btn">&times;</button>
+                <button type="button" class="close-btn">&times;</button>
             </div>
             <div class="modal-body">
                 <form id="login-form">
